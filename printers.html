@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🖨️ 印表機監控</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1017;
+      --bg2:       #131720;
+      --card:      #161b27;
+      --card2:     #1c2235;
+      --border:    #1e2736;
+      --green:     #22c55e;
+      --green-dim: #166534;
+      --purple:    #6366f1;
+      --purple-dim:#3730a3;
+      --orange:    #f59e0b;
+      --orange-dim:#92400e;
+      --red:       #ef4444;
+      --red-dim:   #7f1d1d;
+      --text:      #f1f5f9;
+      --text2:     #94a3b8;
+      --text3:     #475569;
+      --bambu:     #00d4aa;
+      --creality:  #ff6b35;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── NAV ── */
+    nav {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-title {
+      font-size: 18px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .nav-spacer { flex: 1; }
+    .pulse-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+    .pulse-dot.off { background: var(--text3); animation: none; }
+    .refresh-label { font-size: 12px; color: var(--text2); }
+    .btn-icon {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background .15s;
+    }
+    .btn-icon:hover { background: var(--card); }
+
+    /* ── STATS BAR ── */
+    .stats-bar {
+      display: flex;
+      gap: 12px;
+      padding: 16px 20px;
+      overflow-x: auto;
+    }
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 20px;
+      min-width: 120px;
+      flex-shrink: 0;
+    }
+    .stat-label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+    .stat-value { font-size: 28px; font-weight: 800; line-height: 1; }
+    .stat-value.green  { color: var(--green); }
+    .stat-value.orange { color: var(--orange); }
+    .stat-value.red    { color: var(--red); }
+    .stat-value.muted  { color: var(--text2); }
+
+    /* ── PRINTER GRID ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 16px;
+      padding: 0 20px 24px;
+    }
+
+    /* ── PRINTER CARD ── */
+    .printer-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      transition: border-color .2s, transform .15s;
+    }
+    .printer-card:hover { transform: translateY(-2px); }
+    .printer-card.printing { border-color: var(--green-dim); }
+    .printer-card.paused   { border-color: var(--orange-dim); }
+    .printer-card.error    { border-color: var(--red-dim); }
+    .printer-card.offline  { opacity: .55; }
+
+    /* card accent bar */
+    .card-accent {
+      height: 3px;
+      background: var(--text3);
+    }
+    .printing  .card-accent { background: var(--green); }
+    .paused    .card-accent { background: var(--orange); }
+    .error     .card-accent { background: var(--red); }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 16px 12px;
+    }
+    .printer-icon {
+      width: 42px; height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .printer-icon.bambu    { background: rgba(0,212,170,.15); }
+    .printer-icon.creality { background: rgba(255,107,53,.15); }
+    .printer-icon.offline  { background: var(--card2); }
+
+    .printer-info { flex: 1; min-width: 0; }
+    .printer-name {
+      font-size: 15px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .printer-type {
+      font-size: 11px;
+      color: var(--text2);
+      margin-top: 2px;
+    }
+
+    /* state badge */
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .badge.printing { background: rgba(34,197,94,.15); color: var(--green); }
+    .badge.paused   { background: rgba(245,158,11,.15); color: var(--orange); }
+    .badge.idle     { background: rgba(71,85,105,.2);   color: var(--text2); }
+    .badge.error    { background: rgba(239,68,68,.15);  color: var(--red); }
+    .badge.offline  { background: rgba(71,85,105,.15);  color: var(--text3); }
+
+    .card-body { padding: 0 16px 16px; }
+
+    /* ── PROGRESS ── */
+    .progress-section { margin-bottom: 14px; }
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+    .progress-file {
+      font-size: 12px;
+      color: var(--text2);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 70%;
+    }
+    .progress-pct {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--green);
+      flex-shrink: 0;
+    }
+    .progress-bar-bg {
+      height: 8px;
+      background: var(--card2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: linear-gradient(90deg, var(--green), #4ade80);
+      transition: width .5s ease;
+      position: relative;
+    }
+    .progress-bar-fill.animated::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: 40px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.3));
+      animation: shimmer 1.5s infinite;
+    }
+    @keyframes shimmer {
+      0%   { opacity: 0; }
+      50%  { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    .progress-eta {
+      font-size: 11px;
+      color: var(--text2);
+      margin-top: 5px;
+      text-align: right;
+    }
+
+    /* ── TEMPS ── */
+    .temps-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .temp-box {
+      flex: 1;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .temp-label {
+      font-size: 10px;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 4px;
+    }
+    .temp-value {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .temp-target {
+      font-size: 11px;
+      color: var(--text3);
+      margin-top: 3px;
+    }
+    .temp-value.hot   { color: #fb923c; }
+    .temp-value.warm  { color: #fbbf24; }
+    .temp-value.cool  { color: var(--text2); }
+
+    /* ── MATERIALS ── */
+    .materials-section { margin-bottom: 2px; }
+    .materials-title {
+      font-size: 11px;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 8px;
+    }
+    .ams-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .ams-slot {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 8px;
+      font-size: 11px;
+    }
+    .color-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .slot-name { color: var(--text2); }
+    .slot-remain { color: var(--text3); font-size: 10px; }
+
+    /* ── CARD FOOTER ── */
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text3);
+    }
+
+    /* ── SETUP / EMPTY STATES ── */
+    .setup-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 56px);
+      padding: 40px 20px;
+    }
+    .setup-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+    }
+    .setup-icon { font-size: 48px; margin-bottom: 16px; }
+    .setup-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    .setup-desc  { font-size: 14px; color: var(--text2); margin-bottom: 28px; line-height: 1.6; }
+    .input-label {
+      text-align: left;
+      font-size: 12px;
+      color: var(--text2);
+      margin-bottom: 6px;
+    }
+    .input-field {
+      width: 100%;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 14px;
+      color: var(--text);
+      outline: none;
+      transition: border-color .15s;
+      margin-bottom: 16px;
+      font-family: 'Courier New', monospace;
+    }
+    .input-field:focus { border-color: var(--purple); }
+    .btn-primary {
+      background: var(--purple);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 28px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: background .15s;
+    }
+    .btn-primary:hover { background: #5254e7; }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.7);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      backdrop-filter: blur(4px);
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+      max-width: 460px;
+      width: 100%;
+    }
+    .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+    .modal-row { display: flex; gap: 10px; margin-top: 4px; }
+    .btn-secondary {
+      flex: 1;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 11px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-secondary:hover { background: var(--bg2); }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 20px;
+      font-size: 13px;
+      z-index: 300;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all .2s;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.ok  { border-color: var(--green-dim); color: var(--green); }
+    #toast.err { border-color: var(--red-dim);   color: var(--red); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: .4; }
+    }
+
+    @media (max-width: 520px) {
+      .grid { grid-template-columns: 1fr; padding: 0 12px 20px; }
+      .stats-bar { padding: 12px; }
+      nav { padding: 0 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-title">🖨️ 印表機監控</div>
+  <div class="nav-spacer"></div>
+  <div class="pulse-dot" id="pulseDot"></div>
+  <span class="refresh-label" id="refreshLabel">連線中...</span>
+  <button class="btn-icon" onclick="openSettings()">⚙️ 設定</button>
+  <a href="/" class="btn-icon" style="text-decoration:none">🧵 線材管理</a>
+</nav>
+
+<!-- STATS BAR -->
+<div class="stats-bar" id="statsBar" style="display:none">
+  <div class="stat-card">
+    <div class="stat-label">全部台數</div>
+    <div class="stat-value muted" id="statTotal">-</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">列印中</div>
+    <div class="stat-value green" id="statPrinting">-</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">暫停</div>
+    <div class="stat-value orange" id="statPaused">-</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">閒置</div>
+    <div class="stat-value muted" id="statIdle">-</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">離線</div>
+    <div class="stat-value red" id="statOffline">-</div>
+  </div>
+</div>
+
+<!-- PRINTER GRID -->
+<div class="grid" id="printerGrid"></div>
+
+<!-- SETUP SCREEN -->
+<div class="setup-container" id="setupScreen" style="display:none">
+  <div class="setup-card">
+    <div class="setup-icon">🖨️</div>
+    <div class="setup-title">設定 API 伺服器位址</div>
+    <div class="setup-desc">
+      請輸入你的本地監控伺服器位址。<br>
+      預設運行在 <code style="color:var(--green);background:var(--card2);padding:2px 6px;border-radius:4px">http://電腦IP:7000</code>
+    </div>
+    <div class="input-label">API 伺服器位址</div>
+    <input type="text" class="input-field" id="setupUrlInput"
+      placeholder="http://192.168.0.100:7000" />
+    <button class="btn-primary" onclick="saveSetup()">儲存並連線</button>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay hidden" id="settingsModal">
+  <div class="modal-box">
+    <div class="modal-title">⚙️ 設定</div>
+    <div class="input-label">API 伺服器位址</div>
+    <input type="text" class="input-field" id="modalUrlInput"
+      placeholder="http://192.168.0.100:7000" />
+    <div class="input-label">自動更新頻率（秒）</div>
+    <input type="number" class="input-field" id="modalRefreshInput"
+      min="5" max="300" value="10" />
+    <div class="modal-row">
+      <button class="btn-secondary" onclick="closeSettings()">取消</button>
+      <button class="btn-primary" style="flex:2" onclick="saveSettings()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────
+let apiUrl = localStorage.getItem('printerApiUrl') || '';
+let refreshInterval = parseInt(localStorage.getItem('printerRefreshSec') || '10');
+let refreshTimer = null;
+let lastData = null;
+
+// ── INIT ──────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  if (!apiUrl) {
+    showSetup();
+  } else {
+    startMonitoring();
+  }
+});
+
+function showSetup() {
+  document.getElementById('setupScreen').style.display = 'flex';
+  document.getElementById('statsBar').style.display = 'none';
+  document.getElementById('printerGrid').innerHTML = '';
+}
+
+function startMonitoring() {
+  document.getElementById('setupScreen').style.display = 'none';
+  document.getElementById('statsBar').style.display = 'flex';
+  fetchStatus();
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(fetchStatus, refreshInterval * 1000);
+}
+
+// ── FETCH ─────────────────────────────────────────────────
+async function fetchStatus() {
+  const dot = document.getElementById('pulseDot');
+  const label = document.getElementById('refreshLabel');
+
+  try {
+    const res = await fetch(`${apiUrl}/api/status`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    lastData = data;
+
+    dot.className = 'pulse-dot';
+    const t = new Date(data.timestamp);
+    label.textContent = `更新 ${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}:${t.getSeconds().toString().padStart(2,'0')}`;
+
+    renderPrinters(data.printers || {});
+  } catch (e) {
+    dot.className = 'pulse-dot off';
+    label.textContent = '無法連線';
+    renderError(e.message);
+  }
+}
+
+// ── RENDER ────────────────────────────────────────────────
+function renderPrinters(printers) {
+  const grid = document.getElementById('printerGrid');
+  const names = Object.keys(printers);
+
+  if (names.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--text2)">
+        <div style="font-size:48px;margin-bottom:16px">🖨️</div>
+        <div style="font-size:16px;margin-bottom:8px">尚無印表機資料</div>
+        <div style="font-size:13px">請確認監控程式正在執行</div>
+      </div>`;
+    updateStats({});
+    return;
+  }
+
+  grid.innerHTML = names.map(name => renderCard(name, printers[name])).join('');
+  updateStats(printers);
+}
+
+function renderCard(name, p) {
+  const state = (p.state || 'UNKNOWN').toUpperCase();
+  const online = p.online;
+  const isOffline = !online;
+  const progress = p.progress ?? 0;
+  const isBambu = (p.printer_type || '').includes('bambu');
+  const isCreality = (p.printer_type || '').includes('creality');
+
+  const stateClass = isOffline ? 'offline' :
+    state === 'PRINTING' ? 'printing' :
+    state === 'PAUSED'   ? 'paused'   :
+    state === 'ERROR'    ? 'error'    : '';
+
+  const stateLabel = isOffline ? '離線' :
+    state === 'PRINTING' ? '列印中' :
+    state === 'PAUSED'   ? '暫停'   :
+    state === 'IDLE'     ? '閒置'   :
+    state === 'ERROR'    ? '錯誤'   : state;
+
+  const badgeClass = isOffline ? 'offline' : stateClass;
+
+  const typeLabel = isBambu ? 'Bambu Lab' : isCreality ? 'Creality K1C' : p.printer_type || '';
+  const iconClass = isBambu ? 'bambu' : isCreality ? 'creality' : (isOffline ? 'offline' : '');
+  const iconEmoji = isBambu ? '🐼' : isCreality ? '🔶' : '🖨️';
+
+  // ── PROGRESS SECTION ──
+  let progressHtml = '';
+  if (!isOffline && (state === 'PRINTING' || state === 'PAUSED' || progress > 0)) {
+    const pct = Math.min(100, Math.max(0, progress || 0));
+    const eta = p.remaining_time ? formatEta(p.remaining_time) : null;
+    const filename = p.print_file ? baseName(p.print_file) : '未知檔案';
+    progressHtml = `
+      <div class="progress-section">
+        <div class="progress-header">
+          <span class="progress-file" title="${p.print_file || ''}">${filename}</span>
+          <span class="progress-pct">${pct.toFixed(1)}%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill ${state === 'PRINTING' ? 'animated' : ''}"
+               style="width:${pct}%"></div>
+        </div>
+        ${eta ? `<div class="progress-eta">預計剩餘 ${eta}</div>` : ''}
+      </div>`;
+  }
+
+  // ── TEMPS SECTION ──
+  let tempsHtml = '';
+  if (!isOffline && (p.temp_nozzle !== null && p.temp_nozzle !== undefined)) {
+    const tn = p.temp_nozzle ?? 0;
+    const tnt = p.temp_nozzle_target ?? 0;
+    const tb = p.temp_bed ?? 0;
+    const tbt = p.temp_bed_target ?? 0;
+    const nClass = tn > 150 ? 'hot' : tn > 60 ? 'warm' : 'cool';
+    const bClass = tb > 50 ? 'hot' : tb > 30 ? 'warm' : 'cool';
+    tempsHtml = `
+      <div class="temps-row">
+        <div class="temp-box">
+          <div class="temp-label">噴嘴</div>
+          <div class="temp-value ${nClass}">${tn.toFixed(0)}°C</div>
+          <div class="temp-target">目標 ${tnt.toFixed(0)}°C</div>
+        </div>
+        <div class="temp-box">
+          <div class="temp-label">熱床</div>
+          <div class="temp-value ${bClass}">${tb.toFixed(0)}°C</div>
+          <div class="temp-target">目標 ${tbt.toFixed(0)}°C</div>
+        </div>
+      </div>`;
+  }
+
+  // ── MATERIALS SECTION ──
+  let materialsHtml = '';
+  const mats = p.materials || {};
+  const matKeys = Object.keys(mats);
+  if (!isOffline && matKeys.length > 0) {
+    const slots = matKeys.slice(0, 8).map(k => {
+      const m = mats[k];
+      const color = m.color && m.color !== 'unknown' ? m.color : '#666';
+      const type = m.type && m.type !== 'unknown' ? m.type : '?';
+      const remain = m.remain !== undefined ? `${m.remain}%` : '';
+      return `<div class="ams-slot">
+        <div class="color-dot" style="background:${color}"></div>
+        <span class="slot-name">${k.replace('AMS','')}: ${type}</span>
+        ${remain ? `<span class="slot-remain">${remain}</span>` : ''}
+      </div>`;
+    }).join('');
+    materialsHtml = `
+      <div class="materials-section">
+        <div class="materials-title">AMS 耗材</div>
+        <div class="ams-grid">${slots}</div>
+      </div>`;
+  }
+
+  // ── OFFLINE STATE ──
+  let offlineHtml = '';
+  if (isOffline) {
+    offlineHtml = `
+      <div style="text-align:center;padding:20px 0;color:var(--text3)">
+        <div style="font-size:32px;margin-bottom:8px">📡</div>
+        <div style="font-size:13px">印表機離線或無法連線</div>
+      </div>`;
+  }
+
+  const lastUpdate = p.timestamp ? timeAgo(p.timestamp) : '';
+
+  return `
+    <div class="printer-card ${stateClass}">
+      <div class="card-accent"></div>
+      <div class="card-header">
+        <div class="printer-icon ${iconClass}">${iconEmoji}</div>
+        <div class="printer-info">
+          <div class="printer-name">${name}</div>
+          <div class="printer-type">${typeLabel}</div>
+        </div>
+        <span class="badge ${badgeClass}">${stateLabel}</span>
+      </div>
+      <div class="card-body">
+        ${offlineHtml}
+        ${progressHtml}
+        ${tempsHtml}
+        ${materialsHtml}
+      </div>
+      <div class="card-footer">
+        <span>最後更新</span>
+        <span>${lastUpdate}</span>
+      </div>
+    </div>`;
+}
+
+function renderError(msg) {
+  const grid = document.getElementById('printerGrid');
+  grid.innerHTML = `
+    <div style="grid-column:1/-1;text-align:center;padding:60px 20px">
+      <div style="font-size:48px;margin-bottom:16px">⚠️</div>
+      <div style="font-size:16px;color:var(--red);margin-bottom:8px">無法連線到 API 伺服器</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:20px">${msg}</div>
+      <div style="font-size:12px;color:var(--text3)">確認伺服器位址: <code style="color:var(--green)">${apiUrl}</code></div>
+    </div>`;
+}
+
+function updateStats(printers) {
+  const vals = Object.values(printers);
+  const printing = vals.filter(p => (p.state||'').toUpperCase() === 'PRINTING').length;
+  const paused   = vals.filter(p => (p.state||'').toUpperCase() === 'PAUSED').length;
+  const idle     = vals.filter(p => (p.state||'').toUpperCase() === 'IDLE').length;
+  const offline  = vals.filter(p => !p.online).length;
+
+  document.getElementById('statTotal').textContent    = vals.length;
+  document.getElementById('statPrinting').textContent = printing;
+  document.getElementById('statPaused').textContent   = paused;
+  document.getElementById('statIdle').textContent     = idle;
+  document.getElementById('statOffline').textContent  = offline;
+}
+
+// ── HELPERS ──────────────────────────────────────────────
+function formatEta(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}小時 ${m}分`;
+  if (m > 0) return `${m}分鐘`;
+  return `${seconds}秒`;
+}
+
+function baseName(path) {
+  return path.split(/[\\/]/).pop().replace(/\.(gcode|3mf|bgcode)$/i, '');
+}
+
+function timeAgo(isoStr) {
+  try {
+    const d = new Date(isoStr);
+    const diff = Math.floor((Date.now() - d) / 1000);
+    if (diff < 60)  return `${diff}秒前`;
+    if (diff < 3600) return `${Math.floor(diff/60)}分前`;
+    return `${Math.floor(diff/3600)}小時前`;
+  } catch { return ''; }
+}
+
+function showToast(msg, type = 'ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  setTimeout(() => el.className = '', 2500);
+}
+
+// ── SETUP / SETTINGS ──────────────────────────────────────
+function saveSetup() {
+  const url = document.getElementById('setupUrlInput').value.trim().replace(/\/$/, '');
+  if (!url.startsWith('http')) { showToast('請輸入有效的 URL', 'err'); return; }
+  apiUrl = url;
+  localStorage.setItem('printerApiUrl', url);
+  showToast('已儲存，連線中...', 'ok');
+  startMonitoring();
+}
+
+function openSettings() {
+  document.getElementById('modalUrlInput').value = apiUrl;
+  document.getElementById('modalRefreshInput').value = refreshInterval;
+  document.getElementById('settingsModal').classList.remove('hidden');
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.add('hidden');
+}
+
+function saveSettings() {
+  const url = document.getElementById('modalUrlInput').value.trim().replace(/\/$/, '');
+  const sec = parseInt(document.getElementById('modalRefreshInput').value) || 10;
+  if (url && !url.startsWith('http')) { showToast('請輸入有效的 URL', 'err'); return; }
+  if (url) {
+    apiUrl = url;
+    localStorage.setItem('printerApiUrl', url);
+  }
+  refreshInterval = Math.max(5, Math.min(300, sec));
+  localStorage.setItem('printerRefreshSec', refreshInterval);
+  closeSettings();
+  showToast(`已儲存 (${refreshInterval}秒更新)`, 'ok');
+  startMonitoring();
+}
+
+// close modal on overlay click
+document.getElementById('settingsModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('settingsModal')) closeSettings();
+});
+</script>
+</body>
+</html>

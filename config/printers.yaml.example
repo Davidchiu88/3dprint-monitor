@@ -1,0 +1,30 @@
+# 印表機設定範例 — 複製成 printers.yaml 並填入實際值
+#   cp printers.yaml.example printers.yaml
+#
+# 注意：printers.yaml 已被 .gitignore 排除（含存取碼，請勿提交）
+
+printers:
+  # ── Bambu Lab（MQTT + FTP）────────────────────────
+  # access_code：印表機螢幕 設定 → 網路 → 區域網路 存取碼
+  # device_id ：印表機序號
+  - name: "Bambu A1 Mini"
+    type: "bambu_lab"
+    ip: "192.168.0.30"            # ← 改成你的印表機 IP
+    device_id: "XXXXXXXXXXXXXXX"  # ← 改成你的序號
+    access_code: "XXXXXXXX"       # ← 改成你的存取碼
+
+  - name: "Bambu A1"
+    type: "bambu_lab"
+    ip: "192.168.0.58"
+    device_id: "XXXXXXXXXXXXXXX"
+    access_code: "XXXXXXXX"
+
+  # ── Creality K1C（WebSocket + SSH）────────────────
+  # K1C 走 SSH（root / creality_2023）下載 gcode；列印中 SSH 會自動關閉
+  - name: "Creality K1C 紅"
+    type: "creality_k1c"
+    ip: "192.168.0.205"           # ← 改成你的印表機 IP
+
+  - name: "Creality K1C 黑"
+    type: "creality_k1c"
+    ip: "192.168.0.92"

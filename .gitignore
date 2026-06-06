@@ -1,0 +1,34 @@
+# ── Python ──────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ── 本機設定（含印表機存取碼，請勿提交）──────────────
+config/printers.yaml
+
+# ── 執行期資料 / 日誌 / 下載 ─────────────────────────
+data/
+downloads/
+snapshots/
+*.log
+*.pid
+
+# ── 系統 / IDE ───────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# ── 大型二進位 / 備份 ────────────────────────────────
+*.img
+*.img.gz
+*.zip.tmp
+whisper/
+bin/
+
+# ── Claude / 本機工具狀態 ────────────────────────────
+.claude/

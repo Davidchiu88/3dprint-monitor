@@ -1,0 +1,141 @@
+# 樹梅派上的印表機配置範本
+# 複製此檔案為 printers.yaml 並修改 IP 地址
+
+printers:
+  # ═══════════════════════════════════════════════════════════
+  # Bambu Lab 印表機 (使用 MQTT)
+  # ═══════════════════════════════════════════════════════════
+
+  # 拓竹 A1 Mini
+  - name: "Bambu A1 Mini"
+    type: "bambu_lab"
+    ip: "192.168.0.30"              # ← 改為你的實際 IP
+    device_id: "XXXXXXXXXXXXXXX"    # ← 改為你的序號
+    access_code: "XXXXXXXX"         # ← 改為你的存取碼
+
+  # 拓竹 A1
+  - name: "Bambu A1"
+    type: "bambu_lab"
+    ip: "192.168.0.58"              # ← 改為你的實際 IP
+    device_id: "XXXXXXXXXXXXXXX"    # ← 改為你的序號
+    access_code: "XXXXXXXX"         # ← 改為你的存取碼
+
+  # 拓竹 A1 第二台
+  - name: "Bambu A1 #2"
+    type: "bambu_lab"
+    ip: "192.168.0.70"              # ← 改為你的實際 IP
+    device_id: "XXXXXXXXXXXXXXX"    # ← 改為你的序號
+    access_code: "XXXXXXXX"         # ← 改為你的存取碼
+
+  # ═══════════════════════════════════════════════════════════
+  # Creality K1C 印表機 (使用 WebSocket + SSH)
+  # ═══════════════════════════════════════════════════════════
+
+  # 創想 K1C 紅
+  - name: "Creality K1C 紅"
+    type: "creality_k1c"
+    ip: "192.168.0.205"             # ← 改為你的實際 IP
+
+  # 創想 K1C 黑
+  - name: "Creality K1C 黑"
+    type: "creality_k1c"
+    ip: "192.168.0.92"              # ← 改為你的實際 IP
+
+# ═══════════════════════════════════════════════════════════
+# 樹梅派特定設置 (可選)
+# ═══════════════════════════════════════════════════════════
+
+# 監控設置
+monitoring:
+  # 輪詢間隔 (秒)
+  poll_interval: 30
+
+  # 連接超時 (秒)
+  connection_timeout: 10
+
+  # 重試次數
+  max_retries: 3
+
+# 日誌設置
+logging:
+  # 日誌級別: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
+
+  # 日誌檔位置
+  file: "/home/pi/3dprint/printer_monitor.log"
+
+  # 最大日誌大小 (MB)
+  max_size: 10
+
+  # 保留日誌數
+  backup_count: 5
+
+# API 伺服器設置
+api:
+  # 監聽 IP (0.0.0.0 = 所有介面)
+  host: "0.0.0.0"
+
+  # 監聽 port
+  port: 7000
+
+  # 工作線程數 (樹梅派建議 2-4)
+  workers: 2
+
+# 存儲設置
+storage:
+  # 狀態檔位置
+  status_file: "/home/pi/3dprint/data/printer_status.json"
+
+  # 歷史檔位置
+  history_file: "/home/pi/3dprint/data/printer_history.jsonl"
+
+  # 快照目錄
+  snapshots_dir: "/home/pi/3dprint/snapshots"
+
+# ═══════════════════════════════════════════════════════════
+# 如何找印表機 IP
+# ═══════════════════════════════════════════════════════════
+
+# 方法 1: 樹梅派上掃描網絡
+# arp-scan -l
+# 或
+# nmap -sn 192.168.0.0/24
+
+# 方法 2: 路由器後台
+# 登入路由器設置 → 查看已連接設備
+
+# 方法 3: 從印表機觸屏查看
+# Bambu: 設置 → 網絡
+# K1C: 設置 → 網絡
+
+# ═══════════════════════════════════════════════════════════
+# 故障排除
+# ═══════════════════════════════════════════════════════════
+
+# 如果連接失敗:
+# 1. 檢查 IP 地址是否正確
+#    樹梅派上: ping 192.168.0.30
+#
+# 2. 查看日誌
+#    journalctl -u printer-monitor -f
+#
+# 3. 檢查防火牆
+#    樹梅派: sudo ufw status
+#    印表機: 檢查網絡設置
+#
+# 4. 重啟印表機和樹梅派
+#    樹梅派: sudo reboot
+
+# ═══════════════════════════════════════════════════════════
+# 修改此檔案後
+# ═══════════════════════════════════════════════════════════
+
+# 重啟服務讓配置生效:
+# sudo systemctl restart printer-monitor.service
+# sudo systemctl restart printer-api.service
+#
+# 查看狀態:
+# sudo systemctl status printer-monitor.service
+#
+# 查看日誌:
+# journalctl -u printer-monitor -f
